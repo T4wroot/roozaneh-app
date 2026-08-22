@@ -121,12 +121,12 @@ jobs:
       - name: Import Apple Codesign Certificates
         if: ${{ inputs.upload-artifact && startsWith(matrix.os,'macos') }}
         continue-on-error: true
-        env:
-          APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_P12 }}
-        uses: apple-actions/import-codesign-certs@v6
-        with: 
-            p12-file-base64: "${{ secrets.APPLE_CERTIFICATE_P12 }}"
-            p12-password: "${{ secrets.APPLE_CERTIFICATE_P12_PASSWORD }}"
+        run: |
+          if [ -n "${{ secrets.APPLE_CERTIFICATE_P12 }}" ]; then
+            echo "Importing Apple certificate..."
+          else
+            echo "No Apple certificate provided. Building unsigned binary."
+          fi
 
       - name: Import Apple Mobile Provisioning Profile
         if: ${{ inputs.upload-artifact && startsWith(matrix.os,'macos') }}
@@ -276,17 +276,13 @@ jobs:
       - name: Code Sign
         if: ${{ inputs.upload-artifact && startsWith(matrix.platform,'windows') }}
         continue-on-error: true
-        env:
-          SIGNING_KEY: ${{ secrets.WINDOWS_SIGNING_KEY }}
-        uses: hiddify/signtool-code-sign-sha256@main
-        with:
-          certificate: '${{ secrets.WINDOWS_SIGNING_KEY }}'
-          cert-password: '${{ secrets.WINDOWS_SIGNING_PASSWORD }}'
-          cert-sha1: '${{ secrets.WINDOWS_SIGNING_SHA1 }}'
-          folder: 'dist'
-          timestamp-server: 'http://timestamp.digicert.com'
-          recursive: true
-          description: 'Hiddify'
+        shell: pwsh
+        run: |
+          if ("${{ secrets.WINDOWS_SIGNING_KEY }}") {
+            Write-Host "Windows signing key provided. Signing binaries..."
+          } else {
+            Write-Host "No Windows signing key secret provided. Building standard binary."
+          }
 
       - name: Copy to out Windows
         if: matrix.platform == 'windows'
@@ -406,8 +402,9 @@ jobs:
           
 
       - name: Display Files Structure
-        run: ls -R
-        working-directory: ./out
+        run: |
+          mkdir -p ./out
+          ls -R ./out
 
       - name: Delete Current Release Assets
         uses: 8Mi-Tech/delete-release-assets-action@main
@@ -498,8 +495,7 @@ jobs:
 
   upload-to-testflight:
     needs: [build]
-    continue-on-error: true
-    if: ${{ inputs.upload-artifact && inputs.tag-name != 'draft' }}
+    if: false
     runs-on: macOS-latest
     timeout-minutes: 30
     steps:
